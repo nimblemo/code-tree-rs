@@ -447,9 +447,8 @@ impl StructureExtractor {
                 source_summary,
                 code_purpose,
                 importance_score: file.importance_score,
-                description: None,           // Filled later through LLM analysis
-                functions: Vec::new(),       // Filled later through code analysis
-                interfaces: interface_names, // Interface names extracted from code analysis
+                description: None,
+                interfaces: interface_names,
             });
         }
 

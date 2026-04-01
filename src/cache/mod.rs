@@ -2,14 +2,14 @@ use anyhow::Result;
 use md5::{Digest, Md5};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::fs;
 
 use crate::config::CacheConfig;
 use crate::i18n::TargetLanguage;
 
 pub mod performance_monitor;
-pub use performance_monitor::{CachePerformanceMonitor, CachePerformanceReport};
+pub use performance_monitor::CachePerformanceMonitor;
 
 /// Cache manager
 pub struct CacheManager {
@@ -47,85 +47,6 @@ impl CacheManager {
             .cache_dir
             .join(category)
             .join(format!("{}.json", hash))
-    }
-
-    /// Check if cache is expired
-    fn is_expired(&self, timestamp: u64) -> bool {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        let expire_seconds = self.config.expire_hours * 3600;
-        now - timestamp > expire_seconds
-    }
-
-    /// Get cache
-    pub async fn get<T>(&self, category: &str, prompt: &str) -> Result<Option<T>>
-    where
-        T: for<'de> Deserialize<'de>,
-    {
-        if !self.config.enabled {
-            return Ok(None);
-        }
-
-        let hash = self.hash_prompt(prompt);
-        let cache_path = self.get_cache_path(category, &hash);
-
-        if !cache_path.exists() {
-            self.performance_monitor.record_cache_miss(category);
-            return Ok(None);
-        }
-
-        match fs::read_to_string(&cache_path).await {
-            Ok(content) => {
-                match serde_json::from_str::<CacheEntry<T>>(&content) {
-                    Ok(entry) => {
-                        if self.is_expired(entry.timestamp) {
-                            // Delete expired cache
-                            let _ = fs::remove_file(&cache_path).await;
-                            self.performance_monitor.record_cache_miss(category);
-                            return Ok(None);
-                        }
-
-                        // Use stored token information for accurate statistics
-                        let estimated_inference_time = self.estimate_inference_time(&content);
-
-                        self.performance_monitor.record_cache_hit(
-                            category,
-                            estimated_inference_time,
-                        );
-                        Ok(Some(entry.data))
-                    }
-                    Err(e) => {
-                        self.performance_monitor
-                            .record_cache_error(category, &format!("Deserialization failed: {}", e));
-                        Ok(None)
-                    }
-                }
-            }
-            Err(e) => {
-                self.performance_monitor
-                    .record_cache_error(category, &format!("Failed to read file: {}", e));
-                Ok(None)
-            }
-        }
-    }
-
-    /// Get compression result cache
-    pub async fn get_compression_cache(&self, original_content: &str, content_type: &str) -> Result<Option<String>> {
-        let cache_key = format!("{}_{}", content_type, self.hash_prompt(original_content));
-        self.get::<String>("prompt_compression", &cache_key).await
-    }
-
-    /// Set compression result cache
-    pub async fn set_compression_cache(
-        &self,
-        original_content: &str,
-        content_type: &str,
-        compressed_content: String,
-    ) -> Result<()> {
-        let cache_key = format!("{}_{}", content_type, self.hash_prompt(original_content));
-        self.set("prompt_compression", &cache_key, compressed_content).await
     }
 
     pub async fn set<T>(&self, category: &str, prompt: &str, data: T) -> Result<()>
@@ -173,20 +94,5 @@ impl CacheManager {
                 Err(e.into())
             }
         }
-    }
-
-    /// Estimate inference time (based on content complexity)
-    fn estimate_inference_time(&self, content: &str) -> Duration {
-        // Estimate inference time based on content length
-        let content_length = content.len();
-        let base_time = 2.0; // Base inference time 2 seconds
-        let complexity_factor = (content_length as f64 / 1000.0).min(10.0); // Maximum 10x complexity
-        let estimated_seconds = base_time + complexity_factor;
-        Duration::from_secs_f64(estimated_seconds)
-    }
-
-    /// Generate performance report
-    pub fn generate_performance_report(&self) -> CachePerformanceReport {
-        self.performance_monitor.generate_report()
     }
 }

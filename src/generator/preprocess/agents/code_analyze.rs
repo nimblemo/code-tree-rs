@@ -107,11 +107,9 @@ impl CodeAnalyze {
 
         Ok(CodeInsight {
             code_dossier: code.clone(),
-            detailed_description: format!("Detailed analysis of {}", code.name),
             interfaces,
             dependencies,
             complexity_metrics,
-            responsibilities: vec![],
         })
     }
 }

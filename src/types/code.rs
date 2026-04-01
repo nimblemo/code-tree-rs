@@ -188,9 +188,7 @@ pub struct CodeDossier {
     pub importance_score: f64,
     #[serde(skip_serializing)]
     pub description: Option<String>,
-    #[serde(skip_serializing)]
-    #[serde(default, deserialize_with = "deserialize_vec_string_lenient")]
-    pub functions: Vec<String>,
+
     /// Interfaces list
     #[serde(default, deserialize_with = "deserialize_vec_string_lenient")]
     pub interfaces: Vec<String>,
@@ -202,13 +200,6 @@ pub struct CodeDossier {
 pub struct CodeInsight {
     /// Code basic information
     pub code_dossier: CodeDossier,
-    #[serde(skip_serializing)]
-    #[serde(default, deserialize_with = "deserialize_string_lenient")]
-    pub detailed_description: String,
-    /// Responsibilities
-    #[serde(skip_serializing)]
-    #[serde(default, deserialize_with = "deserialize_vec_string_lenient")]
-    pub responsibilities: Vec<String>,
     /// Contained interfaces
     #[serde(default, deserialize_with = "deserialize_interfaces_lenient")]
     pub interfaces: Vec<InterfaceInfo>,
@@ -767,7 +758,6 @@ mod tests {
             PathBuf::from("src/chat-window.tsx")
         );
         assert_eq!(insight.code_dossier.code_purpose, CodePurpose::Other);
-        assert!(insight.responsibilities.is_empty());
         assert_eq!(insight.interfaces[0].name, "");
         assert_eq!(insight.dependencies[0].name, "");
     }
@@ -818,7 +808,6 @@ mod tests {
             .expect("CodeInsight should tolerate loose schema values from LLM output");
 
         assert_eq!(insight.code_dossier.name, "use-toast.ts");
-        assert_eq!(insight.detailed_description, "hook for toast state");
         assert_eq!(insight.interfaces.len(), 1);
         assert_eq!(insight.interfaces[0].name, "State interface");
         assert_eq!(insight.dependencies.len(), 1);

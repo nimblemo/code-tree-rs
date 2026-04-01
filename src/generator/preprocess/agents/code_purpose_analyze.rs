@@ -22,9 +22,6 @@ impl CodePurposeEnhancer {
         // First use rule mapping
         let rule_based_type =
             CodePurposeMapper::map_by_path_and_name(&file_path.to_string_lossy(), file_name);
-
-        // --- LLM Analysis Disabled ---
-        // Always return rule-based type to avoid LLM usage
         Ok(rule_based_type)
     }
 }
