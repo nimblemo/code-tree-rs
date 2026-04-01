@@ -1,3 +1,5 @@
+# Installation script for code-tree-rs
+# Version: 0.1.1 (Fixed arch detection)
 param (
     [switch]$Local,
     [string]$Path = "",
