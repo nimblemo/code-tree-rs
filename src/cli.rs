@@ -50,7 +50,7 @@ impl Args {
             // If no config file is explicitly specified, try loading from default location
             let default_config_path = std::env::current_dir()
                 .unwrap_or_else(|_| std::path::PathBuf::from("."))
-                .join("tree.toml");
+                .join(".tree.toml");
 
             if default_config_path.exists() {
                 let msg = format!("Failed to read config file from {:?}", default_config_path);

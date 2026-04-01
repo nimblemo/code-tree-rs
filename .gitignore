@@ -22,7 +22,7 @@ target
 .zed/
 .qoder/
 
-# Litho(deepwiki-rs) Generated Cache and Documents
+
 .tree/
 tree.docs/
 
