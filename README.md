@@ -59,13 +59,13 @@ Built with **Rust** for maximum performance and safety, it uses an asynchronous,
 Run the following command in PowerShell to automatically download the latest binary, install it to `$HOME\.code-tree-rs\bin`, and add it to your `PATH`:
 
 ```powershell
-iex (iwr -useb https://raw.githubusercontent.com/nimblemo/code-tree-rs/main/scripts/install.ps1)
+irm https://raw.githubusercontent.com/nimblemo/code-tree-rs/main/scripts/install.ps1 | iex
 ```
 
 _Or, if you have the repository cloned:_
 
 ```powershell
-.\scripts\install.ps1
+    .\scripts\install.ps1
 ```
 
 **Option B: Local Installation**
@@ -73,7 +73,7 @@ _Or, if you have the repository cloned:_
 To download the binary into your current folder without changing the system `PATH`:
 
 ```powershell
- & ([scriptblock]::Create((iwr -useb 'https://raw.githubusercontent.com/nimblemo/code-tree-rs/main/scripts/install.ps1').Content)) -Local
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/nimblemo/code-tree-rs/main/scripts/install.ps1'))) -Local
 ```
 
 **Option C: Build from Source**

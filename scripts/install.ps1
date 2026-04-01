@@ -1,9 +1,11 @@
-# Parameters
 param (
     [switch]$Local,
     [string]$Path = "",
     [string]$Repo = "nimblemo/code-tree-rs"
 )
+
+# Ensure TLS 1.2 for older PowerShell versions
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 # Configuration
 $BinaryName = "code-tree-rs"
@@ -20,7 +22,24 @@ if (-not (Test-Path $InstallDir)) {
 Write-Host "Fetching latest release from $Repo..." -ForegroundColor Cyan
 try {
     $ReleaseInfo = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest"
-    $Asset = $ReleaseInfo.assets | Where-Object { $_.name -like "*windows-msvc.zip" } | Select-Object -First 1
+    
+    # Determine architecture
+    $Arch = "x86_64" # Default to x86_64
+    if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
+        $Arch = "aarch64"
+    } elseif ($env:PROCESSOR_ARCHITECTURE -eq "AMD64") {
+        $Arch = "x86_64"
+    }
+    
+    Write-Host "Detected architecture: $Arch ($env:PROCESSOR_ARCHITECTURE)" -ForegroundColor Gray
+
+    # Try to find the asset for the detected architecture
+    $Asset = $ReleaseInfo.assets | Where-Object { $_.name -like "*$Arch*windows-msvc.zip" } | Select-Object -First 1
+
+    if (-not $Asset) {
+        # Fallback to any windows-msvc if specific arch not found
+        $Asset = $ReleaseInfo.assets | Where-Object { $_.name -like "*windows-msvc.zip" } | Select-Object -First 1
+    }
 
     if (-not $Asset) {
         Write-Error "No Windows build found in the latest release. Please check $Repo releases."
@@ -28,7 +47,7 @@ try {
     }
 
     $DownloadUrl = $Asset.browser_download_url
-    Write-Host "Found version: $($ReleaseInfo.tag_name)" -ForegroundColor Green
+    Write-Host "Found version: $($ReleaseInfo.tag_name) ($($Asset.name))" -ForegroundColor Green
 } catch {
     Write-Error "Failed to fetch release info: $_"
     exit 1
@@ -42,16 +61,25 @@ Write-Host "Extracting to $InstallDir..." -ForegroundColor Cyan
 Expand-Archive -Path $ZipFile -DestinationPath $InstallDir -Force
 Remove-Item $ZipFile
 
+# Flatten directory structure if needed (if zip contains a folder)
+$ExtractedItems = Get-ChildItem -Path $InstallDir
+if ($ExtractedItems.Count -eq 1 -and $ExtractedItems[0].PsIsContainer) {
+    Write-Host "Flattening directory structure..." -ForegroundColor Gray
+    $SubDir = $ExtractedItems[0].FullName
+    Get-ChildItem -Path $SubDir | Move-Item -Destination $InstallDir -Force
+    Remove-Item $SubDir -Recurse -Force
+}
+
 # Check for existence of the binary after extraction
 $BinaryPath = Join-Path $InstallDir "$BinaryName.exe"
 if (-not (Test-Path $BinaryPath)) {
-    # Sometimes zip contains a subfolder or different name, let's try to find it
-    $Files = Get-ChildItem -Path $InstallDir -Filter "*.exe" -Recurse
+    # If still not found, try to find it recursively
+    $Files = Get-ChildItem -Path $InstallDir -Filter "$BinaryName.exe" -Recurse
     if ($Files.Count -gt 0) {
         $BinaryPath = $Files[0].FullName
         Write-Host "Detected binary at: $BinaryPath" -ForegroundColor Yellow
     } else {
-        Write-Error "Could not find binary executable in the extracted archive."
+        Write-Error "Could not find $BinaryName.exe in the extracted archive."
         exit 1
     }
 }
