@@ -73,7 +73,7 @@ _Or, if you have the repository cloned:_
 To download the binary into your current folder without changing the system `PATH`:
 
 ```powershell
-& { $(iwr -useb https://raw.githubusercontent.com/nimblemo/code-tree-rs/main/scripts/install.ps1) } -Local
+ & ([scriptblock]::Create((iwr -useb 'https://raw.githubusercontent.com/nimblemo/code-tree-rs/main/scripts/install.ps1').Content)) -Local
 ```
 
 **Option C: Build from Source**
