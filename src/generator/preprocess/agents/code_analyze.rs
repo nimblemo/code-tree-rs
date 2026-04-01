@@ -28,7 +28,7 @@ impl CodeAnalyze {
         codes: &Vec<CodeDossier>,
         project_structure: &ProjectStructure,
     ) -> Result<Vec<CodeInsight>> {
-        let max_parallels = context.config.llm.max_parallels;
+        let max_parallels = context.config.cache.max_parallels;
 
         // Create concurrent tasks
         let analysis_futures: Vec<_> = codes

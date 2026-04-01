@@ -4,68 +4,6 @@ use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
 
-use crate::i18n::TargetLanguage;
-
-/// LLM Provider type
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
-pub enum LLMProvider {
-    #[serde(rename = "openai")]
-    OpenAI,
-    #[serde(rename = "moonshot")]
-    Moonshot,
-    #[serde(rename = "deepseek")]
-    DeepSeek,
-    #[serde(rename = "mistral")]
-    Mistral,
-    #[serde(rename = "openrouter")]
-    OpenRouter,
-    #[serde(rename = "anthropic")]
-    Anthropic,
-    #[serde(rename = "gemini")]
-    Gemini,
-    #[serde(rename = "ollama")]
-    Ollama,
-}
-
-impl Default for LLMProvider {
-    fn default() -> Self {
-        Self::OpenAI
-    }
-}
-
-impl std::fmt::Display for LLMProvider {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            LLMProvider::OpenAI => write!(f, "openai"),
-            LLMProvider::Moonshot => write!(f, "moonshot"),
-            LLMProvider::DeepSeek => write!(f, "deepseek"),
-            LLMProvider::Mistral => write!(f, "mistral"),
-            LLMProvider::OpenRouter => write!(f, "openrouter"),
-            LLMProvider::Anthropic => write!(f, "anthropic"),
-            LLMProvider::Gemini => write!(f, "gemini"),
-            LLMProvider::Ollama => write!(f, "ollama"),
-        }
-    }
-}
-
-impl std::str::FromStr for LLMProvider {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "openai" => Ok(LLMProvider::OpenAI),
-            "moonshot" => Ok(LLMProvider::Moonshot),
-            "deepseek" => Ok(LLMProvider::DeepSeek),
-            "mistral" => Ok(LLMProvider::Mistral),
-            "openrouter" => Ok(LLMProvider::OpenRouter),
-            "anthropic" => Ok(LLMProvider::Anthropic),
-            "gemini" => Ok(LLMProvider::Gemini),
-            "ollama" => Ok(LLMProvider::Ollama),
-            _ => Err(format!("Unknown provider: {}", s)),
-        }
-    }
-}
-
 /// Application configuration
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Config {
@@ -78,23 +16,11 @@ pub struct Config {
     /// Output path
     pub output_path: PathBuf,
 
-    /// Internal working directory path (.litho)
+    /// Internal working directory path (.tree)
     pub internal_path: PathBuf,
-
-    /// Target language
-    pub target_language: TargetLanguage,
-
-    /// Whether to analyze dependencies
-    pub analyze_dependencies: bool,
-
-    /// Whether to identify core components
-    pub identify_components: bool,
 
     /// Maximum recursion depth
     pub max_depth: u8,
-
-    /// Core component percentage
-    pub core_component_percentage: f64,
 
     /// Maximum file size limit (bytes)
     pub max_file_size: u64,
@@ -117,65 +43,12 @@ pub struct Config {
     /// Only include specified file extensions
     pub included_extensions: Vec<String>,
 
-    /// LLM model configuration
-    pub llm: LLMConfig,
-
     /// Cache configuration
     pub cache: CacheConfig,
-
-    /// Knowledge configuration for external documentation sources
-    #[serde(default)]
-    pub knowledge: KnowledgeConfig,
-
-    /// Architecture meta description file path
-    pub architecture_meta_path: Option<PathBuf>,
-
-    /// Boundary analysis configuration
-    #[serde(default)]
-    pub boundary_analysis: BoundaryAnalysisConfig,
 
     /// Whether to enable verbose output
     #[serde(default)]
     pub verbose: bool,
-}
-
-/// LLM model configuration
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct LLMConfig {
-    /// LLM Provider type
-    pub provider: LLMProvider,
-
-    /// LLM API KEY (optional for local providers like Ollama)
-    #[serde(default)]
-    pub api_key: String,
-
-    /// LLM API base URL
-    pub api_base_url: String,
-
-    /// Efficient model, prioritized for Litho engine's regular inference tasks
-    pub model_efficient: String,
-
-    /// Powerful model, prioritized for Litho engine's complex inference tasks, and as fallback when efficient fails
-    pub model_powerful: String,
-
-    /// Maximum tokens
-    pub max_tokens: u32,
-
-    /// Temperature (optional - some models like o3-mini don't support it)
-    pub temperature: Option<f64>,
-
-    /// Retry attempts
-    pub retry_attempts: u32,
-
-    /// Retry interval (milliseconds)
-    pub retry_delay_ms: u64,
-
-    /// Timeout duration (seconds)
-    pub timeout_seconds: u64,
-
-    pub disable_preset_tools: bool,
-
-    pub max_parallels: usize,
 }
 
 /// Cache configuration
@@ -189,161 +62,9 @@ pub struct CacheConfig {
 
     /// Cache expiration time (hours)
     pub expire_hours: u64,
-}
 
-/// Boundary analysis configuration
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct BoundaryAnalysisConfig {
-    /// Maximum number of boundary code insights to analyze
-    /// Reducing this value can significantly speed up processing and reduce timeout risk
-    /// Default: 50
-    #[serde(default = "default_max_boundary_insights")]
-    pub max_boundary_insights: usize,
-
-    /// Code insights limit for formatting
-    /// Controls how many code insights are included in the prompt
-    /// Default: 100
-    #[serde(default = "default_code_insights_limit")]
-    pub code_insights_limit: usize,
-
-    /// Whether to include source code in boundary analysis
-    /// Setting to false significantly reduces token usage
-    /// Default: true
-    #[serde(default = "default_false")]
-    pub include_source_code: bool,
-
-    /// Only show directories when file count exceeds this threshold
-    /// Helps avoid information overload for large codebases
-    /// Default: 500
-    #[serde(default = "default_files_threshold")]
-    pub only_directories_when_files_more_than: Option<usize>,
-}
-
-fn default_max_boundary_insights() -> usize {
-    15  // Reduced default to avoid 504 timeouts on large codebases
-}
-
-fn default_code_insights_limit() -> usize {
-    25  // Reduced default to balance performance and quality
-}
-
-fn default_files_threshold() -> Option<usize> {
-    Some(100)  // Reduced threshold for better performance
-}
-
-/// Knowledge configuration for external documentation sources
-#[derive(Debug, Deserialize, Serialize, Clone, Default)]
-pub struct KnowledgeConfig {
-    /// Local documentation files configuration
-    pub local_docs: Option<LocalDocsConfig>,
-}
-
-/// Document category for organizing external knowledge
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct DocumentCategory {
-    /// Category identifier (e.g., "architecture", "database", "api")
-    pub name: String,
-
-    /// Human-readable description of this category
-    #[serde(default)]
-    pub description: String,
-
-    /// File paths or glob patterns for this category
-    #[serde(default)]
-    pub paths: Vec<String>,
-
-    /// Which agents should receive documents from this category
-    /// If empty, documents are available to all agents
-    #[serde(default)]
-    pub target_agents: Vec<String>,
-
-    /// Chunking configuration for large documents in this category
-    #[serde(default)]
-    pub chunking: Option<ChunkingConfig>,
-}
-
-/// Configuration for document chunking
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct ChunkingConfig {
-    /// Enable chunking for large documents (default: true)
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-
-    /// Maximum chunk size in characters (default: 8000 ~2000 tokens)
-    #[serde(default = "default_chunk_size")]
-    pub max_chunk_size: usize,
-
-    /// Overlap between chunks in characters (default: 200)
-    #[serde(default = "default_chunk_overlap")]
-    pub chunk_overlap: usize,
-
-    /// Chunking strategy: "semantic" (by sections), "fixed" (fixed size), "paragraph"
-    #[serde(default = "default_chunk_strategy")]
-    pub strategy: String,
-
-    /// Minimum document size (chars) to trigger chunking (default: 10000)
-    #[serde(default = "default_min_size_for_chunking")]
-    pub min_size_for_chunking: usize,
-}
-
-impl Default for ChunkingConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            max_chunk_size: 8000,
-            chunk_overlap: 200,
-            strategy: "semantic".to_string(),
-            min_size_for_chunking: 10000,
-        }
-    }
-}
-
-fn default_chunk_size() -> usize {
-    8000
-}
-
-fn default_chunk_overlap() -> usize {
-    200
-}
-
-fn default_chunk_strategy() -> String {
-    "semantic".to_string()
-}
-
-fn default_min_size_for_chunking() -> usize {
-    10000
-}
-
-/// Local documentation files configuration
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct LocalDocsConfig {
-    /// Whether local docs integration is enabled
-    #[serde(default)]
-    pub enabled: bool,
-
-    /// Categorized document sources
-    /// Each category can have its own paths and target agents
-    #[serde(default)]
-    pub categories: Vec<DocumentCategory>,
-
-    /// Local cache directory for processed content
-    pub cache_dir: Option<PathBuf>,
-
-    /// Whether to re-process files if they change
-    #[serde(default = "default_true")]
-    pub watch_for_changes: bool,
-
-    /// Default chunking configuration for all categories
-    /// Can be overridden per category
-    #[serde(default)]
-    pub default_chunking: Option<ChunkingConfig>,
-}
-
-fn default_true() -> bool {
-    true
-}
-fn default_false() -> bool {
-    false
+    /// Maximum parallel operations
+    pub max_parallels: usize,
 }
 
 impl Config {
@@ -620,19 +341,15 @@ impl Default for Config {
         Self {
             project_name: None,
             project_path: PathBuf::from("."),
-            output_path: PathBuf::from("./litho.docs"),
-            internal_path: PathBuf::from("./.litho"),
-            target_language: TargetLanguage::default(),
-            analyze_dependencies: true,
-            identify_components: true,
+            output_path: PathBuf::from("./tree.docs"),            
+            internal_path: PathBuf::from("./.tree"),
             max_depth: 10,
-            core_component_percentage: 20.0,
             max_file_size: 64 * 1024, // 64KB
             include_tests: false,
             include_hidden: false,
             excluded_dirs: vec![
-                ".litho".to_string(),
-                "litho.docs".to_string(),
+                ".tree".to_string(),
+                "tree.docs".to_string(),
                 "target".to_string(),
                 "node_modules".to_string(),
                 ".git".to_string(),
@@ -646,8 +363,8 @@ impl Default for Config {
                 "__fixtures__".to_string(),
             ],
             excluded_files: vec![
-                "litho.toml".to_string(),
-                "*.litho".to_string(),
+                "tree.toml".to_string(),
+                "*.tree".to_string(),
                 "*.log".to_string(),
                 "*.tmp".to_string(),
                 "*.cache".to_string(),
@@ -681,31 +398,8 @@ impl Default for Config {
                 "archive".to_string(),
             ],
             included_extensions: vec![],
-            architecture_meta_path: None,
-            llm: LLMConfig::default(),
             cache: CacheConfig::default(),
-            knowledge: KnowledgeConfig::default(),
-            boundary_analysis: BoundaryAnalysisConfig::default(),
             verbose: false,
-        }
-    }
-}
-
-impl Default for LLMConfig {
-    fn default() -> Self {
-        Self {
-            provider: LLMProvider::default(),
-            api_key: std::env::var("LITHO_LLM_API_KEY").unwrap_or_default(),
-            api_base_url: String::from("https://api-inference.modelscope.cn/v1"),
-            model_efficient: String::from("Qwen/Qwen3-Next-80B-A3B-Instruct"),
-            model_powerful: String::from("Qwen/Qwen3.5-397B-A17B"),
-            max_tokens: 131072,
-            temperature: Some(0.1),
-            retry_attempts: 3,
-            retry_delay_ms: 5000,
-            timeout_seconds: 300,
-            disable_preset_tools: false,
-            max_parallels: 3,
         }
     }
 }
@@ -714,34 +408,9 @@ impl Default for CacheConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            cache_dir: PathBuf::from(".litho/cache"),
+            cache_dir: PathBuf::from(".tree/cache"),
             expire_hours: 8760,
+            max_parallels: 10,
         }
-    }
-}
-
-impl Default for BoundaryAnalysisConfig {
-    fn default() -> Self {
-        Self {
-            max_boundary_insights: default_max_boundary_insights(),
-            code_insights_limit: default_code_insights_limit(),
-            include_source_code: default_false(),
-            only_directories_when_files_more_than: default_files_threshold(),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_boundary_analysis_default_values() {
-        let config = BoundaryAnalysisConfig::default();
-        
-        assert_eq!(config.max_boundary_insights, 15);
-        assert_eq!(config.code_insights_limit, 25);
-        assert_eq!(config.include_source_code, false);
-        assert_eq!(config.only_directories_when_files_more_than, Some(100));
     }
 }

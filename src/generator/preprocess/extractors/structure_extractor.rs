@@ -439,7 +439,7 @@ impl StructureExtractor {
 
             // Extract core code summary
             let source_summary =
-                read_code_source(&self.language_processor, &structure.root_path, &file.path, &self.context.config.target_language);
+                read_code_source(&self.language_processor, &structure.root_path, &file.path);
 
             core_codes.push(CodeDossier {
                 name: file.name.clone(),

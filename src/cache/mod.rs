@@ -6,7 +6,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::fs;
 
 use crate::config::CacheConfig;
-use crate::i18n::TargetLanguage;
 
 pub mod performance_monitor;
 pub use performance_monitor::CachePerformanceMonitor;
@@ -27,10 +26,10 @@ pub struct CacheEntry<T> {
 }
 
 impl CacheManager {
-    pub fn new(config: CacheConfig, target_language: TargetLanguage) -> Self {
+    pub fn new(config: CacheConfig) -> Self {
         Self {
             config,
-            performance_monitor: CachePerformanceMonitor::new(target_language),
+            performance_monitor: CachePerformanceMonitor::new(),
         }
     }
 

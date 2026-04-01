@@ -35,8 +35,7 @@ pub async fn launch(c: &Config) -> Result<()> {
 
     let config = c.clone();
     let cache_manager = Arc::new(RwLock::new(CacheManager::new(
-        config.cache.clone(),
-        config.target_language.clone(),
+        config.cache.clone()
     )));
     let memory = Arc::new(RwLock::new(Memory::new()));
 

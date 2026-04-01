@@ -1,0 +1,16 @@
+project_path = "."
+output_path = ".tree.docs"
+internal_path = ".tree"
+
+analyze_dependencies = true
+identify_components = true
+max_depth = 10
+core_component_percentage = 40.0
+max_file_size = 65536
+include_tests = false
+include_hidden = false
+
+[cache]
+enabled = true
+cache_dir = ".tree/cache"
+expire_hours = 8760

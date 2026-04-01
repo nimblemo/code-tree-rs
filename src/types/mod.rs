@@ -1,6 +1,4 @@
 pub mod code;
-pub mod code_releationship;
-pub mod original_document;
 pub mod project_structure;
 
 use std::path::PathBuf;

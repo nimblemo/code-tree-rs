@@ -2,20 +2,18 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
 
-use crate::generator::preprocess::extractors::original_document_extractor;
 use crate::generator::preprocess::memory::{MemoryScope, ScopedKeys};
-use crate::types::original_document::OriginalDocument;
 use crate::{
     generator::{
         context::GeneratorContext,
         preprocess::{
-            agents::{code_analyze::CodeAnalyze, relationships_analyze::RelationshipsAnalyze},
+            agents::code_analyze::CodeAnalyze,
             extractors::structure_extractor::StructureExtractor,
         },
         types::Generator,
     },
     types::{
-        code::CodeInsight, code_releationship::RelationshipAnalysis,
+        code::CodeInsight,
         project_structure::ProjectStructure,
     },
 };
@@ -27,14 +25,10 @@ pub mod memory;
 /// Preprocessing result
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PreprocessingResult {
-    // Original document materials extracted from the project, may not be accurate and is for reference only
-    pub original_document: OriginalDocument,
     // Project structure information
     pub project_structure: ProjectStructure,
     // Intelligent insights of core code
     pub core_code_insights: Vec<CodeInsight>,
-    // Dependencies between code
-    pub relationships: RelationshipAnalysis,
     pub processing_time: f64,
 }
 
@@ -54,10 +48,6 @@ impl Generator<PreprocessingResult> for PreProcessAgent {
         let config = &context.config;
 
         println!("🔍 Starting project preprocessing phase...");
-
-        // 1. Extract project original document materials
-        println!("📁 Extracting project original document materials...");
-        let original_document = original_document_extractor::extract(&context).await?;
 
         // 2. Extract project structure
         println!("📁 Extracting project structure...");
@@ -101,27 +91,8 @@ impl Generator<PreprocessingResult> for PreProcessAgent {
                 .set("insights", &cache_key, insight)
                 .await?;
         }
-        println!("   💾 Запись в кэш [insights] - Результат механического анализа сохранен пофайлово");
-
-        // 5. Analyze component relationships
-        println!("🔗 Analyzing component relationships...");
-        let relationships_analyze = RelationshipsAnalyze::new();
-        let relationships = relationships_analyze
-            .execute(&context, &core_code_insights, &project_structure)
-            .await?;
-
-        // Explicitly write the mechanical relationships analysis results to cache
-        let cache_key_rel = format!("relationships_{}", config.project_path.file_name().unwrap_or_default().to_string_lossy());
-        context
-            .cache_manager
-            .write()
-            .await
-            .set("relationships", &cache_key_rel, &relationships)
-            .await?;
-        println!("   💾 Запись в кэш [relationships] - Результат механического анализа сохранен");
-
+      
         let processing_time = start_time.elapsed().as_secs_f64();
-
         println!("✅ Project preprocessing completed, took {:.2} seconds", processing_time);
 
         // 6. Store preprocessing results to Memory
@@ -139,26 +110,10 @@ impl Generator<PreprocessingResult> for PreProcessAgent {
                 &core_code_insights,
             )
             .await?;
-        context
-            .store_to_memory(
-                MemoryScope::PREPROCESS,
-                ScopedKeys::RELATIONSHIPS,
-                &relationships,
-            )
-            .await?;
-        context
-            .store_to_memory(
-                MemoryScope::PREPROCESS,
-                ScopedKeys::ORIGINAL_DOCUMENT,
-                &original_document,
-            )
-            .await?;
 
         Ok(PreprocessingResult {
-            original_document,
             project_structure,
             core_code_insights,
-            relationships,
             processing_time,
         })
     }

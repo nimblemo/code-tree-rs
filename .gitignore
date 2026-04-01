@@ -23,13 +23,13 @@ target
 .qoder/
 
 # Litho(deepwiki-rs) Generated Cache and Documents
-.litho/
-litho.docs/
+.tree/
+tree.docs/
 
 # IDE Project Settings
 .idea/
 
 **/.DS_Store
-litho.toml
+tree.toml
 .vs/*
 
