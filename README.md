@@ -1,4 +1,4 @@
-# Code-tree-rs
+# CODE_TREE_RS
 
 ### Step 1 Project overview
 
