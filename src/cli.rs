@@ -64,7 +64,9 @@ impl Args {
         // Override settings from config file
         config.project_path = self.project_path.clone();
         config.output_path = self.output_path.clone();
-        config.internal_path = self.output_path.join(".tree");
+        
+        // Internal path is typically used for hidden/temp files like .tree
+        config.internal_path = self.output_path.clone();
 
         // Project name handling: CLI argument has highest priority, if CLI doesn't specify and config file doesn't have it, get_project_name() will auto-infer
         if let Some(name) = self.name {
@@ -73,11 +75,11 @@ impl Args {
 
         // Cache configuration
         if self.no_cache {
-            config.cache.enabled = true;
+            config.cache.enabled = false;
         }
         
-        // Ensure cache directory is correctly placed under the output path
-        config.cache.cache_dir = config.internal_path.clone();
+        // Ensure cache directory corresponds to the output path
+        config.cache.cache_dir = self.output_path.join(".tree");
         
         config.verbose = self.verbose;
         config

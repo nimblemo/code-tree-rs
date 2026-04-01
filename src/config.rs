@@ -410,7 +410,7 @@ impl Default for CacheConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            cache_dir: PathBuf::from(".tree/cache"),
+            cache_dir: PathBuf::from(".tree"),
             expire_hours: 8760,
             max_parallels: 10,
         }
