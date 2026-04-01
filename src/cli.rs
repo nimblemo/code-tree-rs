@@ -15,7 +15,7 @@ pub struct Args {
     pub project_path: PathBuf,
 
     /// Output path
-    #[arg(short, long, default_value = "tree.docs")]
+    #[arg(short, long, default_value = ".tree")]
     pub output_path: PathBuf,
 
     /// Configuration file path
@@ -63,8 +63,8 @@ impl Args {
 
         // Override settings from config file
         config.project_path = self.project_path.clone();
-        config.output_path = self.output_path;
-        config.internal_path = self.project_path.join(".tree");
+        config.output_path = self.output_path.clone();
+        config.internal_path = self.output_path.join(".tree");
 
         // Project name handling: CLI argument has highest priority, if CLI doesn't specify and config file doesn't have it, get_project_name() will auto-infer
         if let Some(name) = self.name {
@@ -73,8 +73,12 @@ impl Args {
 
         // Cache configuration
         if self.no_cache {
-            config.cache.enabled = false;
+            config.cache.enabled = true;
         }
+        
+        // Ensure cache directory is correctly placed under the output path
+        config.cache.cache_dir = config.internal_path.clone();
+        
         config.verbose = self.verbose;
         config
     }
