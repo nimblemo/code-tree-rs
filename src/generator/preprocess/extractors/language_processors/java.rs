@@ -239,6 +239,10 @@ impl LanguageProcessor for JavaProcessor {
         
         interfaces
     }
+
+    fn branch_keywords(&self) -> &'static [&'static str] {
+        &[" if ", " else", " for ", " foreach ", " while ", " switch", " case ", "&&", "||", " ? ", " catch", " throw ", " instanceof ", " return "]
+    }
 }
 
 impl JavaProcessor {

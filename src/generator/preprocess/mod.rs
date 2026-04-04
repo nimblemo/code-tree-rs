@@ -92,6 +92,10 @@ impl Generator<PreprocessingResult> for PreProcessAgent {
                 .await?;
         }
       
+        // --- Back-fill section removed ---
+        // (Metrics and complexity_score are now directly provided by structure_extractor
+        // which gives us O(1) performance for `stats` command without reading CodeInsight).
+
         let processing_time = start_time.elapsed().as_secs_f64();
         println!("✅ Project preprocessing completed, took {:.2} seconds", processing_time);
 
