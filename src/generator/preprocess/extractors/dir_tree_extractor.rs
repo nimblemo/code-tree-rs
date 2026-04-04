@@ -200,7 +200,15 @@ fn build_children(
     dump: bool,
 ) -> (Vec<TreeEntry>, AdvancedMetrics) {
     let mut children: Vec<TreeEntry> = Vec::new();
-    let mut am_acc = AdvancedMetrics::empty();
+
+    let parent_descendants: Vec<&FileInfo> = if parent_norm.as_os_str().is_empty() || parent_norm == &PathBuf::from(".") {
+        all_files.iter().collect()
+    } else {
+        all_files.iter()
+            .filter(|f| normalize_path(&f.path).starts_with(parent_norm))
+            .collect()
+    };
+    let am_acc = compute_advanced_metrics(&parent_descendants, all_files);
 
     // Direct child directories
     for dir in all_dirs {
@@ -220,7 +228,6 @@ fn build_children(
         }
 
         let (sub_children, sub_am) = build_children(&d_rel, all_dirs, all_files, project_path, dump);
-        am_acc.add(&sub_am);
 
         let (sizes, complexity_scores, lines_of_code, functions_counts, cyclomatic_complexities) = if dump {
             (
@@ -276,10 +283,6 @@ fn build_children(
         if !is_child {
             continue;
         }
-
-        // Compute metrics for this single file to allow aggregation
-        let file_am = compute_advanced_metrics(&[file], all_files);
-        am_acc.add(&file_am);
 
         children.push(TreeEntry::File(FileNode {
             kind: "file",
