@@ -68,6 +68,32 @@ impl StructureExtractor {
         // Calculate importance scores
         self.calculate_importance_scores(&mut files, &mut directories);
 
+        // Re-sync complexity_scores in DirectoryInfo after importance/complexity scores are finalised.
+        let mut files_by_directory: std::collections::HashMap<PathBuf, Vec<usize>> = std::collections::HashMap::new();
+        for (idx, file) in files.iter().enumerate() {
+            if let Some(parent) = file.path.parent() {
+                files_by_directory.entry(parent.to_path_buf()).or_default().push(idx);
+            }
+        }
+
+        for dir in directories.iter_mut() {
+            let dir_rel = dir.path.strip_prefix(project_path).unwrap_or(&dir.path);
+            
+            if let Some(file_indices) = files_by_directory.get(dir_rel) {
+                dir.complexity_scores.clear();
+                dir.sizes.clear();
+                
+                for &idx in file_indices {
+                    let file = &files[idx];
+                    dir.complexity_scores.push(file.complexity_score);
+                    dir.sizes.push(file.size);
+                }
+            } else {
+                dir.complexity_scores.clear();
+                dir.sizes.clear();
+            }
+        }
+
         let project_name = self.context.config.get_project_name();
 
         Ok(ProjectStructure {
@@ -102,6 +128,11 @@ impl StructureExtractor {
             let mut dir_file_count = 0;
             let mut dir_subdirectory_count = 0;
             let mut dir_total_size = 0;
+            let mut dir_sizes: Vec<u64> = Vec::new();
+            let mut dir_complexity_scores: Vec<f64> = Vec::new();
+            let mut dir_locs: Vec<usize> = Vec::new();
+            let mut dir_funcs: Vec<usize> = Vec::new();
+            let mut dir_complexities: Vec<f64> = Vec::new();
 
             while let Some(entry) = entries.next_entry().await? {
                 let path = entry.path();
@@ -111,7 +142,7 @@ impl StructureExtractor {
                     // Check if this file should be ignored
                     if !self.should_ignore_file(&path) {
                         if let Ok(metadata) = std::fs::metadata(&path) {
-                            let file_info = self.create_file_info(&path, root_path, &metadata)?;
+                            let file_info = self.create_file_info(&path, root_path, &metadata).await?;
 
                             // Update statistics
                             if let Some(ext) = &file_info.extension {
@@ -123,6 +154,11 @@ impl StructureExtractor {
 
                             dir_file_count += 1;
                             dir_total_size += file_info.size;
+                            dir_sizes.push(file_info.size);
+                            dir_complexity_scores.push(file_info.complexity_score);
+                            dir_locs.push(file_info.lines_of_code);
+                            dir_funcs.push(file_info.functions_count);
+                            dir_complexities.push(file_info.cyclomatic_complexity);
 
                             files.push(file_info);
                         }
@@ -167,6 +203,11 @@ impl StructureExtractor {
                     subdirectory_count: dir_subdirectory_count,
                     total_size: dir_total_size,
                     importance_score: 0.0, // Calculate later
+                    sizes: dir_sizes,
+                    complexity_scores: dir_complexity_scores,
+                    lines_of_code: dir_locs,
+                    functions_counts: dir_funcs,
+                    cyclomatic_complexities: dir_complexities,
                 };
                 directories.push(dir_info);
             }
@@ -175,7 +216,7 @@ impl StructureExtractor {
         })
     }
 
-    fn create_file_info(
+    async fn create_file_info(
         &self,
         path: &PathBuf,
         root_path: &PathBuf,
@@ -200,14 +241,51 @@ impl StructureExtractor {
             .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
             .map(|duration| duration.as_secs().to_string());
 
+        // Read file once, compute all raw complexity and dependency metrics
+        let (complexity_score, lines_of_code, functions_count, classes_count, cyclomatic_complexity, dependencies) = 
+            match tokio::time::timeout(std::time::Duration::from_secs(10), tokio::fs::read_to_string(path)).await {
+                Ok(Ok(content)) => {
+                    let processor = LanguageProcessorManager::new();
+                    let score = processor.compute_complexity_score(path, &content);
+                    let loc = content.lines().filter(|l| !l.trim().is_empty()).count();
+                    let metrics = processor.calculate_complexity_metrics(&content);
+                    let deps = processor.extract_dependencies(path, &content);
+                    let mut dep_paths = Vec::new();
+                    for d in deps {
+                        if !d.is_external {
+                            if let Some(p) = d.path {
+                                dep_paths.push(p);
+                            } else {
+                                dep_paths.push(d.name);
+                            }
+                        }
+                    }
+                    (score, loc, metrics.number_of_functions, metrics.number_of_classes, metrics.cyclomatic_complexity, dep_paths)
+                },
+                Ok(Err(_)) => {
+                    // File read error
+                    (0.0, 0, 0, 0, 0.0, Vec::new())
+                },
+                Err(_) => {
+                    // Timeout
+                    eprintln!("⚠️ Timeout reading file: {}", path.display());
+                    (0.0, 0, 0, 0, 0.0, Vec::new())
+                }
+            };
+
         Ok(FileInfo {
-            path: relative_path,
+            path: relative_path.clone(),
             name,
             size: metadata.len(),
             extension,
             is_core: false,        // Calculate later
             importance_score: 0.0, // Calculate later
-            complexity_score: 0.0, // Calculate later
+            complexity_score,
+            lines_of_code,
+            functions_count,
+            classes_count,
+            cyclomatic_complexity,
+            dependencies,
             last_modified,
         })
     }
@@ -411,6 +489,9 @@ impl StructureExtractor {
 
             dir.importance_score = score.min(1.0);
         }
+
+        // complexity_score is now computed at scan time by complexity_analyzer.
+        // No back-fill needed.
     }
 
     /// Identify core files

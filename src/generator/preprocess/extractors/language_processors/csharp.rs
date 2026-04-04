@@ -420,6 +420,10 @@ impl LanguageProcessor for CSharpProcessor {
         
         interfaces
     }
+
+    fn branch_keywords(&self) -> &'static [&'static str] {
+        &[" if ", " else", " for ", " foreach ", " while ", " switch", " case ", "&&", "||", " ? ", " catch", "?.", "??", " throw ", " return ", " is ", " as "]
+    }
 }
 
 impl CSharpProcessor {

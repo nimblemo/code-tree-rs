@@ -668,6 +668,10 @@ impl LanguageProcessor for SwiftProcessor {
 
         interfaces
     }
+
+    fn branch_keywords(&self) -> &'static [&'static str] {
+        &[" if ", " else", " for ", " while ", " switch", " case ", " guard ", "&&", "||", " catch", " throw ", " return ", "?.", "??"]
+    }
 }
 
 #[cfg(test)]

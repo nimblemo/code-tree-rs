@@ -183,6 +183,10 @@ impl LanguageProcessor for PhpProcessor {
         }
         interfaces
     }
+
+    fn branch_keywords(&self) -> &'static [&'static str] {
+        &[" if ", " elseif", " else", " for ", " foreach ", " while ", " switch", " case ", "&&", "||", " ? ", " catch", " throw ", "return ", "??"]
+    }
 }
 
 impl PhpProcessor {

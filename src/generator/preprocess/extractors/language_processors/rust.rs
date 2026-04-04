@@ -249,6 +249,10 @@ impl LanguageProcessor for RustProcessor {
         
         interfaces
     }
+
+    fn branch_keywords(&self) -> &'static [&'static str] {
+        &[" if ", " else", " match ", " for ", " while ", " loop", "&&", "||", "? ", "?;", "=> {", ".unwrap()", ".expect(", " return ", "panic!("]
+    }
 }
 
 impl RustProcessor {

@@ -328,6 +328,10 @@ impl LanguageProcessor for JavaScriptProcessor {
 
         interfaces
     }
+
+    fn branch_keywords(&self) -> &'static [&'static str] {
+        &[" if ", " else", " for ", " while ", " switch", " case ", "&&", "||", " ? ", "?.", "??", ".catch(", ".then(", " => ", "return ", "throw "]
+    }
 }
 
 impl JavaScriptProcessor {
