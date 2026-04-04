@@ -1,9 +1,10 @@
 # Installation script for code-tree-rs
-# Version: 0.1.1 (Fixed arch detection)
+# Version: 0.2.0 (Added update checking)
 param (
     [switch]$Local,
     [string]$Path = "",
-    [string]$Repo = "nimblemo/code-tree-rs"
+    [string]$Repo = "nimblemo/code-tree-rs",
+    [switch]$Force
 )
 
 # Ensure TLS 1.2 for older PowerShell versions
@@ -13,6 +14,19 @@ param (
 $BinaryName = "code-tree-rs"
 $InstallDir = if ($Local) { $PWD.Path } elseif ($Path) { $Path } else { Join-Path $HOME ".code-tree-rs\bin" }
 $ZipFile = Join-Path $env:TEMP "$BinaryName.zip"
+$BinaryPath = Join-Path $InstallDir "$BinaryName.exe"
+
+$CurrentVersion = $null
+if (Test-Path $BinaryPath) {
+    try {
+        $versionOutput = & $BinaryPath --version
+        if ($versionOutput -match "(\d+\.\d+\.\d+)") {
+            $CurrentVersion = $matches[1]
+        }
+    } catch {
+        # Ignore error if we can't get version
+    }
+}
 
 # Create target directory if it doesn't exist
 if (-not (Test-Path $InstallDir)) {
@@ -24,6 +38,24 @@ if (-not (Test-Path $InstallDir)) {
 Write-Host "Fetching latest release from $Repo..." -ForegroundColor Cyan
 try {
     $ReleaseInfo = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest"
+    $LatestVersion = $ReleaseInfo.tag_name -replace '^v',''
+    
+    if ($CurrentVersion) {
+        if ($CurrentVersion -eq $LatestVersion) {
+            Write-Host "code-tree-rs is already up to date ($CurrentVersion)." -ForegroundColor Green
+            exit 0
+        } else {
+            Write-Host "New version available: $LatestVersion (current: $CurrentVersion)" -ForegroundColor Yellow
+            if (-not $Force) {
+                $Prompt = Read-Host "Do you want to update? (Y/n)"
+                if ($Prompt -match "^[Nn]") {
+                    Write-Host "Update cancelled." -ForegroundColor Yellow
+                    exit 0
+                }
+            }
+        }
+    }
+
     
     # Determine architecture
     $Arch = "x86_64" # Default to x86_64
