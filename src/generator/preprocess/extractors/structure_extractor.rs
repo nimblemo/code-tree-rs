@@ -69,42 +69,30 @@ impl StructureExtractor {
         self.calculate_importance_scores(&mut files, &mut directories);
 
         // Re-sync complexity_scores in DirectoryInfo after importance/complexity scores are finalised.
-        // Build a path→complexity map for O(1) lookup.
-        let file_complexity: std::collections::HashMap<PathBuf, f64> = files
-            .iter()
-            .map(|f| (f.path.clone(), f.complexity_score))
-            .collect();
-
-        for dir in directories.iter_mut() {
-            // Re-map complexity_scores using current file scores.
-            // sizes are stable (raw metadata), no need to re-sync.
-            // We match by checking that the file's path starts with the dir's relative path.
-            let dir_rel = dir.path.strip_prefix(project_path).unwrap_or(&dir.path);
-            dir.complexity_scores = files
-                .iter()
-                .filter(|f| {
-                    f.path
-                        .parent()
-                        .map(|p| p == dir_rel)
-                        .unwrap_or(false)
-                })
-                .map(|f| f.complexity_score)
-                .collect();
-            // Also re-sync sizes to match the same order/filter as complexity_scores.
-            dir.sizes = files
-                .iter()
-                .filter(|f| {
-                    f.path
-                        .parent()
-                        .map(|p| p == dir_rel)
-                        .unwrap_or(false)
-                })
-                .map(|f| f.size)
-                .collect();
+        let mut files_by_directory: std::collections::HashMap<PathBuf, Vec<usize>> = std::collections::HashMap::new();
+        for (idx, file) in files.iter().enumerate() {
+            if let Some(parent) = file.path.parent() {
+                files_by_directory.entry(parent.to_path_buf()).or_default().push(idx);
+            }
         }
 
-        // Suppress unused variable warning
-        let _ = file_complexity;
+        for dir in directories.iter_mut() {
+            let dir_rel = dir.path.strip_prefix(project_path).unwrap_or(&dir.path);
+            
+            if let Some(file_indices) = files_by_directory.get(dir_rel) {
+                dir.complexity_scores.clear();
+                dir.sizes.clear();
+                
+                for &idx in file_indices {
+                    let file = &files[idx];
+                    dir.complexity_scores.push(file.complexity_score);
+                    dir.sizes.push(file.size);
+                }
+            } else {
+                dir.complexity_scores.clear();
+                dir.sizes.clear();
+            }
+        }
 
         let project_name = self.context.config.get_project_name();
 
@@ -142,6 +130,9 @@ impl StructureExtractor {
             let mut dir_total_size = 0;
             let mut dir_sizes: Vec<u64> = Vec::new();
             let mut dir_complexity_scores: Vec<f64> = Vec::new();
+            let mut dir_locs: Vec<usize> = Vec::new();
+            let mut dir_funcs: Vec<usize> = Vec::new();
+            let mut dir_complexities: Vec<f64> = Vec::new();
 
             while let Some(entry) = entries.next_entry().await? {
                 let path = entry.path();
@@ -151,7 +142,7 @@ impl StructureExtractor {
                     // Check if this file should be ignored
                     if !self.should_ignore_file(&path) {
                         if let Ok(metadata) = std::fs::metadata(&path) {
-                            let file_info = self.create_file_info(&path, root_path, &metadata)?;
+                            let file_info = self.create_file_info(&path, root_path, &metadata).await?;
 
                             // Update statistics
                             if let Some(ext) = &file_info.extension {
@@ -165,6 +156,9 @@ impl StructureExtractor {
                             dir_total_size += file_info.size;
                             dir_sizes.push(file_info.size);
                             dir_complexity_scores.push(file_info.complexity_score);
+                            dir_locs.push(file_info.lines_of_code);
+                            dir_funcs.push(file_info.functions_count);
+                            dir_complexities.push(file_info.cyclomatic_complexity);
 
                             files.push(file_info);
                         }
@@ -198,22 +192,6 @@ impl StructureExtractor {
 
             // Create directory information
             if current_path != root_path {
-                let (dir_locs, dir_funcs, dir_complexities): (Vec<usize>, Vec<usize>, Vec<f64>) = files
-                    .iter()
-                    .filter(|f| {
-                        f.path.parent().map(|p| {
-                            let abs = root_path.join(p);
-                            abs == *current_path
-                        }).unwrap_or(false)
-                    })
-                    .map(|f| (f.lines_of_code, f.functions_count, f.cyclomatic_complexity))
-                    .fold((Vec::new(), Vec::new(), Vec::new()), |mut acc, (loc, func, complex)| {
-                        acc.0.push(loc);
-                        acc.1.push(func);
-                        acc.2.push(complex);
-                        acc
-                    });
-
                 let dir_info = DirectoryInfo {
                     path: current_path.clone(),
                     name: current_path
@@ -238,7 +216,7 @@ impl StructureExtractor {
         })
     }
 
-    fn create_file_info(
+    async fn create_file_info(
         &self,
         path: &PathBuf,
         root_path: &PathBuf,
@@ -264,27 +242,36 @@ impl StructureExtractor {
             .map(|duration| duration.as_secs().to_string());
 
         // Read file once, compute all raw complexity and dependency metrics
-        let (complexity_score, lines_of_code, functions_count, classes_count, cyclomatic_complexity, dependencies) = std::fs::read_to_string(path)
-            .ok()
-            .map(|content| {
-                let processor = LanguageProcessorManager::new();
-                let score = processor.compute_complexity_score(path, &content);
-                let loc = content.lines().filter(|l| !l.trim().is_empty()).count();
-                let metrics = processor.calculate_complexity_metrics(&content);
-                let deps = processor.extract_dependencies(path, &content);
-                let mut dep_paths = Vec::new();
-                for d in deps {
-                    if !d.is_external {
-                        if let Some(p) = d.path {
-                            dep_paths.push(p);
-                        } else {
-                            dep_paths.push(d.name);
+        let (complexity_score, lines_of_code, functions_count, classes_count, cyclomatic_complexity, dependencies) = 
+            match tokio::time::timeout(std::time::Duration::from_secs(10), tokio::fs::read_to_string(path)).await {
+                Ok(Ok(content)) => {
+                    let processor = LanguageProcessorManager::new();
+                    let score = processor.compute_complexity_score(path, &content);
+                    let loc = content.lines().filter(|l| !l.trim().is_empty()).count();
+                    let metrics = processor.calculate_complexity_metrics(&content);
+                    let deps = processor.extract_dependencies(path, &content);
+                    let mut dep_paths = Vec::new();
+                    for d in deps {
+                        if !d.is_external {
+                            if let Some(p) = d.path {
+                                dep_paths.push(p);
+                            } else {
+                                dep_paths.push(d.name);
+                            }
                         }
                     }
+                    (score, loc, metrics.number_of_functions, metrics.number_of_classes, metrics.cyclomatic_complexity, dep_paths)
+                },
+                Ok(Err(_)) => {
+                    // File read error
+                    (0.0, 0, 0, 0, 0.0, Vec::new())
+                },
+                Err(_) => {
+                    // Timeout
+                    eprintln!("⚠️ Timeout reading file: {}", path.display());
+                    (0.0, 0, 0, 0, 0.0, Vec::new())
                 }
-                (score, loc, metrics.number_of_functions, metrics.number_of_classes, metrics.cyclomatic_complexity, dep_paths)
-            })
-            .unwrap_or((0.0, 0, 0, 0, 0.0, Vec::new()));
+            };
 
         Ok(FileInfo {
             path: relative_path.clone(),
