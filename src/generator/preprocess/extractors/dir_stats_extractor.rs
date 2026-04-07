@@ -19,6 +19,83 @@ pub struct AdvancedMetrics {
     pub stack_distribution: HashMap<String, usize>,
     pub core_ratio: f64,
     pub avg_age_days: f64,
+
+    // Auxiliary fields for hierarchical aggregation (not serialized)
+    #[serde(skip_serializing)]
+    pub total_loc: usize,
+    #[serde(skip_serializing)]
+    pub total_functions: usize,
+    #[serde(skip_serializing)]
+    pub total_cyclomatic_complexity: f64,
+    #[serde(skip_serializing)]
+    pub total_core_loc: usize,
+    #[serde(skip_serializing)]
+    pub total_age_weighted_days: f64,
+}
+
+impl AdvancedMetrics {
+    pub fn empty() -> Self {
+        Self {
+            avg_function_length: 0.0,
+            decision_density: 0.0,
+            max_risk_score: 0.0,
+            fan_in: 0,
+            fan_out: 0,
+            instability: 0.0,
+            stack_distribution: HashMap::new(),
+            core_ratio: 0.0,
+            avg_age_days: 0.0,
+            total_loc: 0,
+            total_functions: 0,
+            total_cyclomatic_complexity: 0.0,
+            total_core_loc: 0,
+            total_age_weighted_days: 0.0,
+        }
+    }
+
+    pub fn add(&mut self, other: &Self) {
+        self.total_loc += other.total_loc;
+        self.total_functions += other.total_functions;
+        self.total_cyclomatic_complexity += other.total_cyclomatic_complexity;
+        self.total_core_loc += other.total_core_loc;
+        self.total_age_weighted_days += other.total_age_weighted_days;
+        
+        self.fan_in += other.fan_in;
+        self.fan_out += other.fan_out;
+        
+        self.max_risk_score = self.max_risk_score.max(other.max_risk_score);
+
+        for (ext, loc) in &other.stack_distribution {
+            *self.stack_distribution.entry(ext.clone()).or_insert(0) += loc;
+        }
+
+        self.recompute_derived();
+    }
+
+    pub fn recompute_derived(&mut self) {
+        if self.total_functions > 0 {
+            self.avg_function_length = self.total_loc as f64 / self.total_functions as f64;
+        } else {
+            self.avg_function_length = 0.0;
+        }
+
+        if self.total_loc > 0 {
+            self.decision_density = self.total_cyclomatic_complexity / self.total_loc as f64;
+            self.core_ratio = self.total_core_loc as f64 / self.total_loc as f64;
+            self.avg_age_days = self.total_age_weighted_days / self.total_loc as f64;
+        } else {
+            self.decision_density = 0.0;
+            self.core_ratio = 0.0;
+            self.avg_age_days = 0.0;
+        }
+
+        let total_fan = self.fan_in + self.fan_out;
+        if total_fan > 0 {
+            self.instability = self.fan_out as f64 / total_fan as f64;
+        } else {
+             self.instability = 0.0;
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -309,6 +386,11 @@ pub fn compute_advanced_metrics(
         stack_distribution,
         core_ratio,
         avg_age_days,
+        total_loc,
+        total_functions,
+        total_cyclomatic_complexity: total_cyclo,
+        total_core_loc: core_loc,
+        total_age_weighted_days,
     }
 }
 
