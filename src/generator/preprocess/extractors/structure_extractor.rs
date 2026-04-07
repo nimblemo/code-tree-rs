@@ -8,7 +8,7 @@ use crate::utils::file_utils::{is_binary_file_path, is_test_directory, is_test_f
 use crate::utils::sources::read_code_source;
 use anyhow::Result;
 use futures::future::BoxFuture;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs::Metadata;
 use std::path::PathBuf;
 
@@ -250,12 +250,14 @@ impl StructureExtractor {
                     let loc = content.lines().filter(|l| !l.trim().is_empty()).count();
                     let metrics = processor.calculate_complexity_metrics(&content);
                     let deps = processor.extract_dependencies(path, &content);
-                    let mut seen = HashSet::new();
                     let mut dep_paths = Vec::new();
                     for d in deps {
-                        let p = if let Some(p) = d.path { p } else { d.name };
-                        if seen.insert(p.clone()) {
-                            dep_paths.push(p);
+                        if !d.is_external {
+                            if let Some(p) = d.path {
+                                dep_paths.push(p);
+                            } else {
+                                dep_paths.push(d.name);
+                            }
                         }
                     }
                     (score, loc, metrics.number_of_functions, metrics.number_of_classes, metrics.cyclomatic_complexity, dep_paths)

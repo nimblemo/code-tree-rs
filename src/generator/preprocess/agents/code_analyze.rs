@@ -96,18 +96,9 @@ impl CodeAnalyze {
             .extract_interfaces(&code.file_path, &content);
 
         // Analyze dependencies
-        let raw_dependencies = self
+        let dependencies = self
             .language_processor
             .extract_dependencies(&code.file_path, &content);
-
-        // Deduplicate dependencies while preserving order
-        let mut seen = std::collections::HashSet::new();
-        let mut dependencies = Vec::new();
-        for dep in raw_dependencies {
-            if seen.insert(dep.clone()) {
-                dependencies.push(dep);
-            }
-        }
 
         // Calculate complexity metrics
         let complexity_metrics = self

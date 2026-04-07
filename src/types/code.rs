@@ -252,28 +252,6 @@ pub struct Dependency {
     pub version: Option<String>,
 }
 
-impl PartialEq for Dependency {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-            && self.path == other.path
-            && self.is_external == other.is_external
-            && self.dependency_type == other.dependency_type
-            && self.version == other.version
-    }
-}
-
-impl Eq for Dependency {}
-
-impl std::hash::Hash for Dependency {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
-        self.path.hash(state);
-        self.is_external.hash(state);
-        self.dependency_type.hash(state);
-        self.version.hash(state);
-    }
-}
-
 impl Display for Dependency {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
