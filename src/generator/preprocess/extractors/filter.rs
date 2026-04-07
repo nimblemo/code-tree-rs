@@ -11,10 +11,13 @@ pub enum Operator {
 }
 
 #[derive(Debug, Clone)]
-pub struct Filter {
-    pub metric: String,
-    pub operator: Operator,
-    pub value: f64,
+pub enum Filter {
+    Metric {
+        metric: String,
+        operator: Operator,
+        value: f64,
+    },
+    Extension(Vec<String>),
 }
 
 static RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -42,32 +45,54 @@ impl Filter {
                 _ => return None,
             };
             
-            Some(Filter {
+            Some(Filter::Metric {
                 value: if metric == "core" && value > 1.0 { value / 100.0 } else { value },
                 metric,
                 operator,
             })
         } else {
-            None
+            // Check if it's a comma-separated list of extensions
+            let exts: Vec<String> = input.split(',')
+                .map(|s| s.trim().trim_start_matches('.').to_lowercase())
+                .filter(|s| !s.is_empty())
+                .collect();
+                
+            if !exts.is_empty() && exts.iter().all(|ext| ext.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')) {
+                Some(Filter::Extension(exts))
+            } else {
+                None
+            }
         }
     }
 
-    pub fn matches(&self, dir: &DirNode) -> bool {
-        let actual_value = match self.metric.as_str() {
-            "core" => dir.advanced_metrics.as_ref().map(|am| am.core_ratio).unwrap_or(0.0),
-            "risk" => dir.advanced_metrics.as_ref().map(|am| am.max_risk_score).unwrap_or(0.0),
-            "instability" => dir.advanced_metrics.as_ref().map(|am| am.instability).unwrap_or(0.0),
-            "fan_in" => dir.advanced_metrics.as_ref().map(|am| am.fan_in as f64).unwrap_or(0.0),
-            "fan_out" => dir.advanced_metrics.as_ref().map(|am| am.fan_out as f64).unwrap_or(0.0),
-            "age" => dir.advanced_metrics.as_ref().map(|am| am.avg_age_days).unwrap_or(0.0),
-            _ => return true, // Unknown metric, pass filter
-        };
+    pub fn matches_dir(&self, dir: &DirNode) -> bool {
+        match self {
+            Filter::Metric { metric, operator, value } => {
+                let actual_value = match metric.as_str() {
+                    "core" => dir.advanced_metrics.as_ref().map(|am| am.core_ratio).unwrap_or(0.0),
+                    "risk" => dir.advanced_metrics.as_ref().map(|am| am.max_risk_score).unwrap_or(0.0),
+                    "instability" => dir.advanced_metrics.as_ref().map(|am| am.instability).unwrap_or(0.0),
+                    "fan_in" => dir.advanced_metrics.as_ref().map(|am| am.fan_in as f64).unwrap_or(0.0),
+                    "fan_out" => dir.advanced_metrics.as_ref().map(|am| am.fan_out as f64).unwrap_or(0.0),
+                    "age" => dir.advanced_metrics.as_ref().map(|am| am.avg_age_days).unwrap_or(0.0),
+                    _ => return true, // Unknown metric, pass filter
+                };
 
-        match self.operator {
-            Operator::GreaterThan => actual_value > self.value,
-            Operator::LessThan => actual_value < self.value,
-            Operator::GreaterOrEqual => actual_value >= self.value,
-            Operator::LessOrEqual => actual_value <= self.value,
+                match operator {
+                    Operator::GreaterThan => actual_value > *value,
+                    Operator::LessThan => actual_value < *value,
+                    Operator::GreaterOrEqual => actual_value >= *value,
+                    Operator::LessOrEqual => actual_value <= *value,
+                }
+            },
+            Filter::Extension(exts) => {
+                // A directory matches if any of its files match the extension
+                if let Some(am) = &dir.advanced_metrics {
+                    exts.iter().any(|ext| am.stack_distribution.contains_key(ext))
+                } else {
+                    false
+                }
+            }
         }
     }
 }
@@ -76,7 +101,20 @@ pub fn should_print_node(entry: &TreeEntry, filter: &Option<Filter>) -> bool {
     if let Some(f) = filter {
         match entry {
             TreeEntry::Dir(d) => should_print_dir(d, f),
-            TreeEntry::File(_) => true, // Files are printed if their parent dir is printed
+            TreeEntry::File(file) => {
+                if let Filter::Extension(exts) = f {
+                    // Get file extension from its name
+                    let parts: Vec<&str> = file.name.split('.').collect();
+                    if parts.len() > 1 {
+                        let ext = parts.last().unwrap().to_lowercase();
+                        exts.contains(&ext)
+                    } else {
+                        false
+                    }
+                } else {
+                    true // For metric filters, files are printed if their parent dir is printed
+                }
+            }
         }
     } else {
         true
@@ -84,13 +122,26 @@ pub fn should_print_node(entry: &TreeEntry, filter: &Option<Filter>) -> bool {
 }
 
 pub fn should_print_dir(d: &DirNode, f: &Filter) -> bool {
-    if f.matches(d) {
+    if f.matches_dir(d) {
         return true;
     }
     for child in &d.children {
-        if let TreeEntry::Dir(child_dir) = child {
-            if should_print_dir(child_dir, f) {
-                return true;
+        match child {
+            TreeEntry::Dir(child_dir) => {
+                if should_print_dir(child_dir, f) {
+                    return true;
+                }
+            },
+            TreeEntry::File(file) => {
+                if let Filter::Extension(exts) = f {
+                    let parts: Vec<&str> = file.name.split('.').collect();
+                    if parts.len() > 1 {
+                        let ext = parts.last().unwrap().to_lowercase();
+                        if exts.contains(&ext) {
+                            return true;
+                        }
+                    }
+                }
             }
         }
     }

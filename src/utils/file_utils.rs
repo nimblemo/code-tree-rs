@@ -161,3 +161,57 @@ pub fn is_binary_file_path(path: &Path) -> bool {
         false
     }
 }
+
+/// Resolve a relative dependency path against a base file path
+/// Returns a normalized relative path from the project root if successful
+pub fn resolve_dependency_path(base_file: &Path, dep_str: &str, project_root: &Path) -> Option<std::path::PathBuf> {
+    if dep_str.is_empty() {
+        return None;
+    }
+    
+    // If dependency is already an absolute path within project
+    let dep_path = Path::new(dep_str);
+    if dep_path.is_absolute() {
+        if let Ok(rel) = dep_path.strip_prefix(project_root) {
+            return Some(normalize_path_lexically(rel));
+        }
+        return None; // Absolute path outside project
+    }
+
+    // Resolve relative to the directory of the base file
+    let base_dir = base_file.parent()?;
+    let joined = base_dir.join(dep_path);
+    
+    // Clean path lexically (resolve . and ..)
+    let cleaned = normalize_path_lexically(&joined);
+    
+    // If the path was already relative to project root (e.g. from structure.files)
+    // or we successfully resolved it, ensure it uses standard separators
+    Some(cleaned)
+}
+
+/// Lexically normalizes a path, resolving `.` and `..` without hitting the filesystem
+pub fn normalize_path_lexically(path: &Path) -> std::path::PathBuf {
+    use std::path::Component;
+    let mut out = std::path::PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::ParentDir => {
+                // Pop the last component if it's a normal directory, 
+                // but don't pop if it's empty or we're at the root
+                if let Some(Component::Normal(_)) = out.components().last() {
+                    out.pop();
+                } else {
+                    out.push(component);
+                }
+            }
+            Component::CurDir => {}
+            _ => out.push(component),
+        }
+    }
+    
+    // Convert backslashes to forward slashes for consistent internal representation
+    let s = out.to_string_lossy().replace('\\', "/");
+    std::path::PathBuf::from(s.trim_start_matches("./"))
+}
+
