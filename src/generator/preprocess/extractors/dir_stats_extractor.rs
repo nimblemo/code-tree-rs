@@ -8,7 +8,7 @@ use crate::config::Config;
 use std::collections::{HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Serialize, Clone, Default)]
+#[derive(Serialize)]
 pub struct AdvancedMetrics {
     pub avg_function_length: f64,
     pub decision_density: f64,
@@ -218,10 +218,7 @@ pub fn compute_advanced_metrics(
         }
     }
 
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
-    let mut unique_fan_out = HashSet::new();
+    let mut fan_out = 0;
     for f in descendants {
         for dep in &f.dependencies {
             let dep_norm = dep.replace('\\', "/");
@@ -233,15 +230,12 @@ pub fn compute_advanced_metrics(
                 && !internal_paths.contains(&dep_norm) 
                 && !internal_basenames.contains(&dep_stem) 
             {
-                let mut hasher = DefaultHasher::new();
-                dep_norm.hash(&mut hasher);
-                unique_fan_out.insert(hasher.finish());
+                fan_out += 1;
             }
         }
     }
-    let fan_out = unique_fan_out.len();
 
-    let mut unique_fan_in = HashSet::new();
+    let mut fan_in = 0;
     for ext_file in all_files {
         let ext_path = ext_file.path.display().to_string().replace('\\', "/");
         if internal_paths.contains(&ext_path) {
@@ -257,13 +251,10 @@ pub fn compute_advanced_metrics(
                 || internal_paths.contains(&dep_norm) 
                 || internal_basenames.contains(&dep_stem) 
             {
-                let mut hasher = DefaultHasher::new();
-                ext_path.hash(&mut hasher);
-                unique_fan_in.insert(hasher.finish());
+                fan_in += 1;
             }
         }
     }
-    let fan_in = unique_fan_in.len();
 
     let instability = if fan_in + fan_out > 0 {
         fan_out as f64 / (fan_in as f64 + fan_out as f64)

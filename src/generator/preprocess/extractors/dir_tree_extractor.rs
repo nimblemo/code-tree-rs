@@ -58,27 +58,6 @@ pub async fn run_tree(config: &Config, input_path: &PathBuf, json: bool, dump: b
 
     let is_root = norm_rel.as_os_str().is_empty() || norm_rel == PathBuf::from(".");
 
-    let mut metrics_by_dir = std::collections::HashMap::new();
-    
-    // Compute root metrics
-    let root_descendants: Vec<&FileInfo> = structure.files.iter().collect();
-    let root_am = compute_advanced_metrics(&root_descendants, &structure.files);
-    metrics_by_dir.insert(PathBuf::new(), root_am.clone());
-    metrics_by_dir.insert(PathBuf::from("."), root_am);
-    
-    // Compute metrics for all directories
-    for dir in &structure.directories {
-        let rel = dir.path.strip_prefix(&config.project_path).unwrap_or(&dir.path);
-        let norm = normalize_path(&rel.to_path_buf());
-        
-        let descendants: Vec<&FileInfo> = structure.files.iter()
-            .filter(|f| normalize_path(&f.path).starts_with(&norm))
-            .collect();
-            
-        let am = compute_advanced_metrics(&descendants, &structure.files);
-        metrics_by_dir.insert(norm, am);
-    }
-
     let tree: DirNode = if is_root {
         let (sizes, complexity_scores, lines_of_code, functions_counts, cyclomatic_complexities) = if dump {
             (
@@ -105,7 +84,6 @@ pub async fn run_tree(config: &Config, input_path: &PathBuf, json: bool, dump: b
             &structure.files,
             &config.project_path,
             dump,
-            &metrics_by_dir,
         );
 
         DirNode {
@@ -139,7 +117,6 @@ pub async fn run_tree(config: &Config, input_path: &PathBuf, json: bool, dump: b
                     &structure.files,
                     &config.project_path,
                     dump,
-                    &metrics_by_dir,
                 );
 
                 let (sizes, complexity_scores, lines_of_code, functions_counts, cyclomatic_complexities) = if dump {
@@ -221,14 +198,17 @@ fn build_children(
     all_files: &[FileInfo],
     project_path: &PathBuf,
     dump: bool,
-    metrics_by_dir: &std::collections::HashMap<PathBuf, AdvancedMetrics>,
 ) -> (Vec<TreeEntry>, AdvancedMetrics) {
     let mut children: Vec<TreeEntry> = Vec::new();
 
-    let am_acc = metrics_by_dir
-        .get(parent_norm)
-        .cloned()
-        .unwrap_or_else(AdvancedMetrics::default);
+    let parent_descendants: Vec<&FileInfo> = if parent_norm.as_os_str().is_empty() || parent_norm == &PathBuf::from(".") {
+        all_files.iter().collect()
+    } else {
+        all_files.iter()
+            .filter(|f| normalize_path(&f.path).starts_with(parent_norm))
+            .collect()
+    };
+    let am_acc = compute_advanced_metrics(&parent_descendants, all_files);
 
     // Direct child directories
     for dir in all_dirs {
@@ -247,7 +227,7 @@ fn build_children(
             continue;
         }
 
-        let (sub_children, sub_am) = build_children(&d_rel, all_dirs, all_files, project_path, dump, metrics_by_dir);
+        let (sub_children, sub_am) = build_children(&d_rel, all_dirs, all_files, project_path, dump);
 
         let (sizes, complexity_scores, lines_of_code, functions_counts, cyclomatic_complexities) = if dump {
             (
