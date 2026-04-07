@@ -18,9 +18,9 @@ async fn main() -> Result<()> {
     let config = args.to_config();
 
     match command {
-        Some(cli::Commands::Stats { path, json, tree, dump }) => {
+        Some(cli::Commands::Stats { path, json, tree, dump, depth, filter }) => {
             if tree {
-                generator::preprocess::extractors::dir_tree_extractor::run_tree(&config, &path, json, dump).await
+                generator::preprocess::extractors::dir_tree_extractor::run_tree(&config, &path, json, dump, depth, filter).await
             } else {
                 generator::preprocess::extractors::dir_stats_extractor::run_stats(&config, &path, json, dump).await
             }

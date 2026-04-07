@@ -2,6 +2,7 @@ pub mod dir_stats_extractor;
 pub mod dir_tree_extractor;
 pub mod language_processors;
 pub mod structure_extractor;
+pub mod filter;
 
 use anyhow::Result;
 use std::path::PathBuf;

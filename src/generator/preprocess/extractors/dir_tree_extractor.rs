@@ -4,12 +4,13 @@ use std::path::PathBuf;
 
 use super::{format_bytes, load_structure, normalize_path};
 use super::dir_stats_extractor::{AdvancedMetrics, compute_advanced_metrics};
+use super::filter::{Filter, should_print_node, should_print_dir};
 use crate::config::Config;
 use crate::types::{DirectoryInfo, FileInfo};
 
 // ─── Tree node types ─────────────────────────────────────────────────────────
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct FileNode {
     pub kind: &'static str,
     pub name: String,
@@ -20,7 +21,7 @@ pub struct FileNode {
     pub importance_score: f64,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct DirNode {
     pub kind: &'static str,
     pub name: String,
@@ -46,7 +47,7 @@ pub struct DirNode {
     pub cyclomatic_complexities: Option<Vec<f64>>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[serde(untagged)]
 pub enum TreeEntry {
     Dir(DirNode),
@@ -55,8 +56,16 @@ pub enum TreeEntry {
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
-pub async fn run_tree(config: &Config, input_path: &PathBuf, json: bool, dump: bool) -> Result<()> {
+pub async fn run_tree(config: &Config, input_path: &PathBuf, json: bool, dump: bool, max_depth: Option<usize>, filter_str: Option<String>) -> Result<()> {
     let (structure, config, norm_rel, _cm) = load_structure(config, input_path, json).await?;
+
+    let parsed_filter = filter_str.and_then(|s| {
+        let f = Filter::parse(&s);
+        if f.is_none() {
+            eprintln!("⚠️ Warning: Invalid filter string '{}', ignoring.", s);
+        }
+        f
+    });
 
     let is_root = norm_rel.as_os_str().is_empty() || norm_rel == PathBuf::from(".");
 
@@ -208,14 +217,25 @@ pub async fn run_tree(config: &Config, input_path: &PathBuf, json: bool, dump: b
     if json {
         println!("{}", serde_json::to_string_pretty(&tree)?);
     } else {
+        if let Some(f) = &parsed_filter {
+            if !should_print_dir(&tree, f) {
+                println!("🌳 Tree is empty (all nodes filtered out).");
+                return Ok(());
+            }
+        }
+
         println!("\n{}/  [{} files, {}, {} lines, {} funcs]", tree.name, tree.file_count, format_bytes(tree.total_size), tree.total_lines, tree.total_functions);
         
         if let Some(am) = &tree.advanced_metrics {
             print_advanced_metrics_node(am, "");
         }
 
-        for (i, child) in tree.children.iter().enumerate() {
-            print_entry(child, "", i == tree.children.len() - 1);
+        let printable_children: Vec<&TreeEntry> = tree.children.iter()
+            .filter(|c| should_print_node(c, &parsed_filter))
+            .collect();
+
+        for (i, child) in printable_children.iter().enumerate() {
+            print_entry(child, "", i == printable_children.len() - 1, 1, max_depth, &parsed_filter);
         }
         println!();
     }
@@ -352,7 +372,17 @@ fn print_advanced_metrics_node(am: &crate::generator::preprocess::extractors::di
     }
 }
 
-fn print_entry(entry: &TreeEntry, prefix: &str, is_last: bool) {
+fn print_entry(entry: &TreeEntry, prefix: &str, is_last: bool, current_depth: usize, max_depth: Option<usize>, filter: &Option<Filter>) {
+    if !should_print_node(entry, filter) {
+        return;
+    }
+
+    if let Some(md) = max_depth {
+        if current_depth > md {
+            return;
+        }
+    }
+
     let connector = if is_last { "└── " } else { "├── " };
     let extension = if is_last { "    " } else { "│   " };
 
@@ -375,8 +405,12 @@ fn print_entry(entry: &TreeEntry, prefix: &str, is_last: bool) {
                 print_advanced_metrics_node(am, &new_prefix);
             }
 
-            for (i, child) in d.children.iter().enumerate() {
-                print_entry(child, &new_prefix, i == d.children.len() - 1);
+            let printable_children: Vec<&TreeEntry> = d.children.iter()
+                .filter(|c| should_print_node(c, filter))
+                .collect();
+
+            for (i, child) in printable_children.iter().enumerate() {
+                print_entry(child, &new_prefix, i == printable_children.len() - 1, current_depth + 1, max_depth, filter);
             }
         }
         TreeEntry::File(f) => {

@@ -19,6 +19,12 @@ pub enum Commands {
         /// Include raw data dump arrays (sizes, code metrics, etc.) - functional only with --json
         #[arg(long)]
         dump: bool,
+        /// Maximum depth for tree output (formatting rule). E.g. --depth 1
+        #[arg(long)]
+        depth: Option<usize>,
+        /// Filter tree output by metrics (e.g. --filter "core>80" or --filter[core=80])
+        #[arg(long)]
+        filter: Option<String>,
     },
 }
 
