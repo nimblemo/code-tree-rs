@@ -28,8 +28,6 @@ pub struct DirNode {
     pub file_count: usize,
     pub subdirectory_count: usize,
     pub total_size: u64,
-    pub total_lines: usize,
-    pub total_functions: usize,
     pub importance_score: f64,
     pub advanced_metrics: Option<AdvancedMetrics>,
     pub children: Vec<TreeEntry>,
@@ -95,8 +93,6 @@ pub async fn run_tree(config: &Config, input_path: &PathBuf, json: bool, dump: b
         };
 
         let total_size: u64 = structure.files.iter().map(|f| f.size).sum();
-        let total_lines: usize = structure.files.iter().map(|f| f.lines_of_code).sum();
-        let total_functions: usize = structure.files.iter().map(|f| f.functions_count).sum();
         let importance_score = {
             let scores: Vec<f64> = structure.files.iter().map(|f| f.importance_score).collect();
             if scores.is_empty() { 0.0 } else { scores.iter().sum::<f64>() / scores.len() as f64 }
@@ -119,8 +115,6 @@ pub async fn run_tree(config: &Config, input_path: &PathBuf, json: bool, dump: b
             file_count: structure.total_files,
             subdirectory_count: structure.total_directories,
             total_size,
-            total_lines,
-            total_functions,
             importance_score,
             advanced_metrics: Some(advanced_metrics),
             children,
@@ -162,8 +156,6 @@ pub async fn run_tree(config: &Config, input_path: &PathBuf, json: bool, dump: b
 
                 let file_count = descendants.len();
                 let total_size = descendants.iter().map(|f| f.size).sum::<u64>();
-                let total_lines = descendants.iter().map(|f| f.lines_of_code).sum();
-                let total_functions = descendants.iter().map(|f| f.functions_count).sum();
                 let subdirectory_count = structure.directories.iter()
                     .filter(|d_inner| {
                         let inner_rel = d_inner.path.strip_prefix(&config.project_path).unwrap_or(&d_inner.path);
@@ -179,8 +171,6 @@ pub async fn run_tree(config: &Config, input_path: &PathBuf, json: bool, dump: b
                     file_count,
                     subdirectory_count,
                     total_size,
-                    total_lines,
-                    total_functions,
                     importance_score: d.importance_score,
                     advanced_metrics: Some(advanced_metrics),
                     children,
@@ -208,7 +198,7 @@ pub async fn run_tree(config: &Config, input_path: &PathBuf, json: bool, dump: b
     if json {
         println!("{}", serde_json::to_string_pretty(&tree)?);
     } else {
-        println!("\n{}/  [{} files, {}, {} lines, {} funcs]", tree.name, tree.file_count, format_bytes(tree.total_size), tree.total_lines, tree.total_functions);
+        println!("\n{}/  [{} files, {}]", tree.name, tree.file_count, format_bytes(tree.total_size));
         
         if let Some(am) = &tree.advanced_metrics {
             print_advanced_metrics_node(am, "");
@@ -276,8 +266,6 @@ fn build_children(
             .collect();
         let file_count = descendants.len();
         let total_size = descendants.iter().map(|f| f.size).sum::<u64>();
-        let total_lines = descendants.iter().map(|f| f.lines_of_code).sum();
-        let total_functions = descendants.iter().map(|f| f.functions_count).sum();
         let subdirectory_count = all_dirs.iter()
             .filter(|d_inner| {
                 let inner_rel = d_inner.path.strip_prefix(project_path).unwrap_or(&d_inner.path);
@@ -293,8 +281,6 @@ fn build_children(
             file_count,
             subdirectory_count,
             total_size,
-            total_lines,
-            total_functions,
             importance_score: dir.importance_score,
             advanced_metrics: Some(sub_am),
             children: sub_children,
@@ -359,14 +345,12 @@ fn print_entry(entry: &TreeEntry, prefix: &str, is_last: bool) {
     match entry {
         TreeEntry::Dir(d) => {
             println!(
-                "{}{}📁 {}/  [{} files, {}, {} lines, {} funcs]",
+                "{}{}📁 {}/  [{} files, {}]",
                 prefix,
                 connector,
                 d.name,
                 d.file_count,
-                format_bytes(d.total_size),
-                d.total_lines,
-                d.total_functions
+                format_bytes(d.total_size)
             );
             
             let new_prefix = format!("{}{}", prefix, extension);

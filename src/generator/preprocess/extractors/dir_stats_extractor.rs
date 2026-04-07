@@ -27,13 +27,9 @@ pub struct DirStats {
     pub file_count: usize,
     pub subdirectory_count: usize,
     pub total_size: u64,
-    pub total_lines: usize,
-    pub total_functions: usize,
-    pub total_cyclomatic_complexity: f64,
-    pub max_complexity_score: f64,
     pub importance_score: f64,
     pub advanced_metrics: AdvancedMetrics,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sizes: Option<Vec<u64>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -76,23 +72,13 @@ pub async fn run_stats(config: &Config, input_path: &PathBuf, json: bool, dump: 
             (None, None, None, None, None)
         };
 
-        let total_lines = structure.files.iter().map(|f| f.lines_of_code).sum();
-        let total_functions = structure.files.iter().map(|f| f.functions_count).sum();
-        let total_cyclomatic_complexity = structure.files.iter().map(|f| f.cyclomatic_complexity).sum();
-        let max_complexity_score = structure.files.iter().map(|f| f.complexity_score).fold(0.0_f64, |a, b| a.max(b));
-
         DirStats {
             path: structure.project_name.clone(),
             file_count: structure.total_files,
             subdirectory_count: structure.total_directories,
             total_size: structure.files.iter().map(|f| f.size).sum(),
-            total_lines,
-            total_functions,
-            total_cyclomatic_complexity,
-            max_complexity_score,
             importance_score,
             advanced_metrics,
-
             sizes,
             complexity_scores,
             lines_of_code,
@@ -130,10 +116,6 @@ pub async fn run_stats(config: &Config, input_path: &PathBuf, json: bool, dump: 
 
                 let file_count = descendants.len();
                 let total_size = descendants.iter().map(|f| f.size).sum::<u64>();
-                let total_lines = descendants.iter().map(|f| f.lines_of_code).sum();
-                let total_functions = descendants.iter().map(|f| f.functions_count).sum();
-                let total_cyclomatic_complexity = descendants.iter().map(|f| f.cyclomatic_complexity).sum();
-                let max_complexity_score = descendants.iter().map(|f| f.complexity_score).fold(0.0_f64, f64::max);
                 let subdirectory_count = structure.directories.iter()
                     .filter(|d_inner| {
                         let inner_rel = d_inner.path.strip_prefix(&config.project_path).unwrap_or(&d_inner.path);
@@ -147,10 +129,6 @@ pub async fn run_stats(config: &Config, input_path: &PathBuf, json: bool, dump: 
                     file_count,
                     subdirectory_count,
                     total_size,
-                    total_lines,
-                    total_functions,
-                    total_cyclomatic_complexity,
-                    max_complexity_score,
                     importance_score: d.importance_score,
                     advanced_metrics,
                     sizes,
@@ -187,10 +165,6 @@ fn print_stats(s: &DirStats) {
     println!("   file_count:         {}", s.file_count);
     println!("   subdirectory_count: {}", s.subdirectory_count);
     println!("   total_size:         {}", format_bytes(s.total_size));
-    println!("   total_lines:        {}", s.total_lines);
-    println!("   total_functions:    {}", s.total_functions);
-    println!("   total_cyclo_complx: {:.3}", s.total_cyclomatic_complexity);
-    println!("   max_complexity_scr: {:.3}", s.max_complexity_score);
     println!("   importance_score:   {:.3}", s.importance_score);
 
     println!("\n🔍 Advanced Metrics:");
