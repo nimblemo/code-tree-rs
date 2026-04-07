@@ -22,25 +22,7 @@ pub enum Commands {
         /// Maximum depth for tree output (formatting rule). E.g. --depth 1
         #[arg(long)]
         depth: Option<usize>,
-        /// Filter tree output by metrics or file extensions.
-        /// 
-        /// Available metrics:
-        /// - risk: Max Risk Score (e.g. risk>0.5)
-        /// - core: Core Ratio percentage (e.g. core>80)
-        /// - instability: Instability score (e.g. instability>0.5)
-        /// - fan_in: Fan In dependencies (e.g. fan_in>10)
-        /// - fan_out: Fan Out dependencies (e.g. fan_out>10)
-        /// - age: Average Age in days (e.g. age>30)
-        /// 
-        /// Operators: >, <, =, >=, <=
-        /// 
-        /// File extensions:
-        /// You can also filter to show only specific file extensions by providing a comma-separated list.
-        /// 
-        /// Examples: 
-        ///   --filter "core>80"
-        ///   --filter "risk>0.5"
-        ///   --filter "rs,toml"
+        /// Filter tree output by metrics (e.g. --filter "core>80" or --filter[core=80])
         #[arg(long)]
         filter: Option<String>,
     },

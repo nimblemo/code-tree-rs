@@ -73,7 +73,7 @@ pub async fn run_tree(config: &Config, input_path: &PathBuf, json: bool, dump: b
     
     // Compute root metrics
     let root_descendants: Vec<&FileInfo> = structure.files.iter().collect();
-    let root_am = compute_advanced_metrics(&root_descendants, &structure.files, &_cm, &structure.project_name).await;
+    let root_am = compute_advanced_metrics(&root_descendants, &structure.files);
     metrics_by_dir.insert(PathBuf::new(), root_am.clone());
     metrics_by_dir.insert(PathBuf::from("."), root_am);
     
@@ -86,7 +86,7 @@ pub async fn run_tree(config: &Config, input_path: &PathBuf, json: bool, dump: b
             .filter(|f| normalize_path(&f.path).starts_with(&norm))
             .collect();
             
-        let am = compute_advanced_metrics(&descendants, &structure.files, &_cm, &structure.project_name).await;
+        let am = compute_advanced_metrics(&descendants, &structure.files);
         metrics_by_dir.insert(norm, am);
     }
 
