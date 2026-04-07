@@ -1,26 +1,6 @@
 use crate::config::{Config};
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use std::path::PathBuf;
-
-/// Available subcommands
-#[derive(Subcommand, Debug)]
-pub enum Commands {
-    /// Show statistics for a directory. Reports recursive file counts, total size, and architectural metrics.
-    Stats {
-        /// Path to a directory (relative or absolute)
-        #[arg(short, long)]
-        path: PathBuf,
-        /// Output as JSON
-        #[arg(long)]
-        json: bool,
-        /// Output nested directory tree with architectural metrics for each node
-        #[arg(short, long)]
-        tree: bool,
-        /// Include raw data dump arrays (sizes, code metrics, etc.) - functional only with --json
-        #[arg(long)]
-        dump: bool,
-    },
-}
 
 #[derive(Parser, Debug)]
 #[command(name = "code-tree-rs")]
@@ -57,9 +37,6 @@ pub struct Args {
     /// Disable cache
     #[arg(long)]
     pub no_cache: bool,
-
-    #[command(subcommand)]
-    pub command: Option<Commands>,
 }
 
 impl Args {

@@ -272,10 +272,6 @@ impl LanguageProcessor for KotlinProcessor {
 
         interfaces
     }
-
-    fn branch_keywords(&self) -> &'static [&'static str] {
-        &[" if ", " else", " when ", " for ", " while ", "&&", "||", "?.", "?:", " catch", " throw ", " return ", " in ", " is ", "!!", " ?: "]
-    }
 }
 
 impl KotlinProcessor {

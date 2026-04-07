@@ -94,21 +94,4 @@ impl CacheManager {
             }
         }
     }
-
-    /// Read a cached value. Returns `None` if cache is disabled, file missing, or deserialization fails.
-    pub async fn get<T>(&self, category: &str, prompt: &str) -> Option<T>
-    where
-        T: for<'de> serde::Deserialize<'de>,
-    {
-        if !self.config.enabled {
-            return None;
-        }
-
-        let hash = self.hash_prompt(prompt);
-        let cache_path = self.get_cache_path(category, &hash);
-
-        let content = fs::read_to_string(&cache_path).await.ok()?;
-        let entry: CacheEntry<T> = serde_json::from_str(&content).ok()?;
-        Some(entry.data)
-    }
 }

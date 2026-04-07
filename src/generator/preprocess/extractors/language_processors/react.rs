@@ -200,10 +200,6 @@ impl LanguageProcessor for ReactProcessor {
 
         interfaces
     }
-
-    fn branch_keywords(&self) -> &'static [&'static str] {
-        &[" if ", " else", " for ", " while ", " switch", " case ", "&&", "||", " ? ", "?.", "??", ".catch(", " => ", "return "]
-    }
 }
 
 impl ReactProcessor {

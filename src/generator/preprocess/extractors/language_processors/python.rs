@@ -206,22 +206,6 @@ impl LanguageProcessor for PythonProcessor {
         
         interfaces
     }
-
-    fn branch_keywords(&self) -> &'static [&'static str] {
-        &[" if ", " elif ", " else:", " for ", " while ", " and ", " or ", " except", " with ", " lambda ", " not ", " in ", " is "]
-    }
-
-    /// Python uses indentation for nesting — 4 spaces per level.
-    fn compute_nesting_depth(&self, content: &str) -> usize {
-        content.lines()
-            .filter(|l| !l.trim().is_empty())
-            .map(|l| {
-                let spaces = l.len() - l.trim_start().len();
-                spaces / 4
-            })
-            .max()
-            .unwrap_or(0)
-    }
 }
 
 impl PythonProcessor {

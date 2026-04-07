@@ -205,10 +205,6 @@ impl LanguageProcessor for VueProcessor {
 
         interfaces
     }
-
-    fn branch_keywords(&self) -> &'static [&'static str] {
-        &[" if ", " else", " for ", " while ", "&&", "||", " ? ", "?.", "??", " return "]
-    }
 }
 
 impl VueProcessor {

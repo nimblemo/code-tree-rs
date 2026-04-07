@@ -223,10 +223,6 @@ impl LanguageProcessor for SvelteProcessor {
 
         interfaces
     }
-
-    fn branch_keywords(&self) -> &'static [&'static str] {
-        &[" if ", " else", " each", " for ", " while ", "&&", "||", " ? ", " return "]
-    }
 }
 
 impl SvelteProcessor {
